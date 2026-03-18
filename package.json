@@ -80,5 +80,11 @@
     "react-i18next": "^16.5.0",
     "react-icons": "^5.5.0",
     "zod": "^4.1.13"
+  },
+  "jest": {
+    "coverageReporters": [
+      "lcov",
+      "text"
+    ]
   }
 }

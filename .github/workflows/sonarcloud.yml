@@ -1,0 +1,78 @@
+# ==============================================
+# SonarCloud CI/CD Workflow
+# Project: ignix-ui
+# Repo: ashutosh-jena-mindfire/ignix-ui
+# Monorepo: Turborepo + pnpm
+# Test Runner: Vitest
+# ==============================================
+
+name: SonarCloud Analysis
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  sonarcloud:
+    name: SonarCloud Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Step 1: Checkout Code ──────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for SonarCloud blame info
+
+      # ── Step 2: Setup pnpm ─────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8.6.0  # Matches packageManager in package.json
+
+      # ── Step 3: Setup Node.js ──────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      # ── Step 4: Install Dependencies ──────────
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── Step 5: Run Tests & Generate Coverage ──
+      # Runs tests only on packages (excludes storybook/poc apps)
+      - name: Run tests with coverage
+        run: pnpm run test:ci
+        env:
+          CI: true
+
+      # ── Step 6: Merge Coverage Reports ─────────
+      # Monorepos generate multiple lcov files — merge them into one
+      - name: Merge coverage reports
+        run: |
+          npm install -g lcov-result-merger
+          lcov-result-merger 'packages/**/coverage/lcov.info' coverage/lcov.info
+          mkdir -p coverage
+          lcov-result-merger 'packages/**/coverage/lcov.info' 'coverage/lcov.info'
+
+      # ── Step 7: SonarCloud Scan ────────────────
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Auto-provided by GitHub
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # Add this in GitHub Secrets
+
+      # ── Step 8: Quality Gate Check ─────────────
+      - name: SonarCloud Quality Gate Check
+        uses: SonarSource/sonarqube-quality-gate-action@master
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
